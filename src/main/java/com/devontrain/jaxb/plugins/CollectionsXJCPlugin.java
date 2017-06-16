@@ -1,5 +1,6 @@
-package com.devontrain.jaxb.common;
+package com.devontrain.jaxb.plugins;
 
+import com.devontrain.jaxb.common.*;
 import com.sun.codemodel.*;
 import com.sun.tools.xjc.Options;
 import com.sun.tools.xjc.generator.bean.field.UntypedListField;

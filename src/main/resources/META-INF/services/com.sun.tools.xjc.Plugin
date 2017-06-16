@@ -1,3 +1,1 @@
-com.devontrain.jaxb.common.CleanXJCPlugin
-com.devontrain.jaxb.common.AddXJCPlugin
-com.devontrain.jaxb.common.CollectionsXJCPlugin
+com.devontrain.jaxb.plugins.CollectionsXJCPlugin
