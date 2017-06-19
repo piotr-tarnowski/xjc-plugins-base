@@ -1,7 +1,10 @@
 package com.devontrain.jaxb.plugins;
 
 import com.devontrain.jaxb.common.*;
-import com.sun.codemodel.*;
+import com.sun.codemodel.JClass;
+import com.sun.codemodel.JDefinedClass;
+import com.sun.codemodel.JFieldVar;
+import com.sun.codemodel.JType;
 import com.sun.tools.xjc.Options;
 import com.sun.tools.xjc.generator.bean.field.UntypedListField;
 import com.sun.tools.xjc.model.CPluginCustomization;
@@ -10,11 +13,12 @@ import com.sun.tools.xjc.outline.FieldOutline;
 import com.sun.tools.xjc.outline.Outline;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static com.devontrain.jaxb.common.XJCPluginUtil.*;
 
 /**
  * Created by @author <a href="mailto:piotr.tarnowski.dev@gmail.com">Piotr Tarnowski</a> on 11.01.17.
@@ -29,13 +33,12 @@ public class CollectionsXJCPlugin extends XJCPluginBase {
             @AllowedAttributes({mod_attrs.class})
             mod;
 
-            @Required
             public interface mod_attrs {
-                String set = "set";
+                String iface = "iface";
+                String impl = "impl";
                 String setter = "setter";
                 String name = "name";
             }
-
         }
     }
 
@@ -55,24 +58,14 @@ public class CollectionsXJCPlugin extends XJCPluginBase {
                     switch (cust) {
                         case mod:
                             JType inner = ((JClass) (field.getRawType())).getTypeParameters().get(0);
-                            JType setType = co.parent().getCodeModel().ref(Set.class).narrow(inner);
+                            JType setType = resolveType(cp, co, inner, coll.cust.mod_attrs.iface, Set.class.getCanonicalName(), errorHandler);
                             var.type(setType);
                             String newName = cp.element.getAttribute(coll.cust.mod_attrs.name);
-                            if (newName != null) {
+                            if (newName.length() > 0) {
                                 var.name(newName);
                             }
-
-                            String set = cp.element.getAttribute(coll.cust.mod_attrs.set);
-                            Class<?> setImpl = null;
-                            try {
-                                setImpl = Class.forName(set);
-                            } catch (ClassNotFoundException e) {
-                                errorHandler.error(new SAXParseException(null, null, e));
-                            }
-                            JType setImplType = co.parent().getCodeModel().ref(setImpl).narrow(inner);
-
-                            replaceGetter(fieldName, co, var, setImplType);
-
+                            JType implType = resolveType(cp, co, inner, coll.cust.mod_attrs.impl, HashSet.class.getCanonicalName(), errorHandler);
+                            replaceGetter(fieldName, co, var, implType);
                             String setter = cp.element.getAttribute(coll.cust.mod_attrs.setter);
                             createSetter(fieldName, co, var, setType, Boolean.TRUE.toString().equalsIgnoreCase(setter));
                             break;
@@ -82,55 +75,7 @@ public class CollectionsXJCPlugin extends XJCPluginBase {
             }
 
         });
-
         handleDeclaredCustomizations(outline, opt, errorHandler);
-
         return true;
-    }
-
-
-    private void replaceGetter(String fieldName, ClassOutline co, JFieldVar f, JType setImplType) {
-        //Create the method name
-        String methodName = resolveMethodName("get", fieldName);
-
-
-        //Find and remove Old Getter!
-        JMethod oldGetter = co.implClass.getMethod(methodName, new JType[0]);
-        co.implClass.methods().remove(oldGetter);
-
-        //Create New Getter
-        JMethod getter = co.implClass.method(JMod.PUBLIC, f.type(), resolveMethodName("get", f.name()));
-
-        //Create Getter Body -> {if (f = null) f = new HashSet(); return f;}
-        getter.body()._if(JExpr.ref(f.name()).eq(JExpr._null()))._then()
-                .assign(f, JExpr._new(setImplType));
-
-        getter.body()._return(JExpr.ref(f.name()));
-    }
-
-    private void createSetter(String fieldName, ClassOutline co, JFieldVar f, JType setType, boolean force) {
-        //Create the method name
-        String methodName = resolveMethodName("set", fieldName);
-
-        //Find and remove Old Setter if exists!
-        Iterator<JMethod> iterator = co.implClass.methods().stream().filter(m -> m.name().equals(methodName)).iterator();
-        if (iterator.hasNext()) {
-            JMethod oldSetter = iterator.next();
-            co.implClass.methods().remove(oldSetter);
-            force = true;
-        }
-
-        if (force) {
-            JType voidType = co.parent().getCodeModel().VOID;
-            JMethod setter = co.implClass.method(JMod.PUBLIC, voidType, resolveMethodName("set", f.name()));
-
-            //Create HashSet JType
-            JVar param = setter.param(setType, f.name());
-            setter.body().assign(JExpr.refthis(f.name()), param);
-        }
-    }
-
-    private String resolveMethodName(String prefix, String fieldName) {
-        return prefix + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
     }
 }
