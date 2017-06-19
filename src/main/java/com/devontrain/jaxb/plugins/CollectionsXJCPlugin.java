@@ -1,10 +1,7 @@
 package com.devontrain.jaxb.plugins;
 
 import com.devontrain.jaxb.common.*;
-import com.sun.codemodel.JClass;
-import com.sun.codemodel.JDefinedClass;
-import com.sun.codemodel.JFieldVar;
-import com.sun.codemodel.JType;
+import com.sun.codemodel.*;
 import com.sun.tools.xjc.Options;
 import com.sun.tools.xjc.generator.bean.field.UntypedListField;
 import com.sun.tools.xjc.model.CPluginCustomization;
@@ -14,11 +11,9 @@ import com.sun.tools.xjc.outline.Outline;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-import static com.devontrain.jaxb.common.XJCPluginUtil.*;
+import static com.devontrain.jaxb.common.CodeModelUtil.*;
 
 /**
  * Created by @author <a href="mailto:piotr.tarnowski.dev@gmail.com">Piotr Tarnowski</a> on 11.01.17.
@@ -50,24 +45,30 @@ public class CollectionsXJCPlugin extends XJCPluginBase {
             public void handle(FieldOutline outline, coll.cust cust, CPluginCustomization cp) throws SAXException {
                 if (outline instanceof UntypedListField) {
                     UntypedListField field = (UntypedListField) outline;
+                    String fieldName = field.getPropertyInfo().getName(false);
+                    String newName = cp.element.getAttribute(coll.cust.mod_attrs.name);
+                    if ("".equals(newName)) {
+                        newName = fieldName;
+                    }
                     ClassOutline co = field.parent();
                     JDefinedClass implClass = co.implClass;
                     Map<String, JFieldVar> fields = implClass.fields();
-                    String fieldName = field.getPropertyInfo().getName(false);
                     JFieldVar var = fields.get(fieldName);
+                    changeXMLTypePropOrderAnnotataion(co, fieldName, newName);
+                    changeXMLElementNameAnnotation(var, newName);
                     switch (cust) {
                         case mod:
-                            JType inner = ((JClass) (field.getRawType())).getTypeParameters().get(0);
-                            JType setType = resolveType(cp, co, inner, coll.cust.mod_attrs.iface, Set.class.getCanonicalName(), errorHandler);
+                            JClass inner = ((JClass) (field.getRawType())).getTypeParameters().get(0);
+                            JClass setType = resolveType(cp, co, inner, coll.cust.mod_attrs.iface, Set.class.getCanonicalName(), errorHandler);
                             var.type(setType);
-                            String newName = cp.element.getAttribute(coll.cust.mod_attrs.name);
                             if (newName.length() > 0) {
                                 var.name(newName);
                             }
-                            JType implType = resolveType(cp, co, inner, coll.cust.mod_attrs.impl, HashSet.class.getCanonicalName(), errorHandler);
-                            replaceGetter(fieldName, co, var, implType);
+                            JClass returnType = resolveType(cp, co, inner, coll.cust.mod_attrs.impl, HashSet.class.getCanonicalName(), errorHandler);
+                            replaceGetter(fieldName, co, var, returnType);
                             String setter = cp.element.getAttribute(coll.cust.mod_attrs.setter);
-                            createSetter(fieldName, co, var, setType, Boolean.TRUE.toString().equalsIgnoreCase(setter));
+                            JClass assignType = resolveType(cp, co, inner.wildcard(), coll.cust.mod_attrs.iface, HashSet.class.getCanonicalName(), errorHandler);
+                            createSetter(fieldName, co, var, setType, assignType, Boolean.TRUE.toString().equalsIgnoreCase(setter));
                             break;
                         default:
                     }

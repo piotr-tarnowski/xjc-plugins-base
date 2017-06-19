@@ -8,12 +8,15 @@ import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
-public final class XJCPluginUtil {
-    private XJCPluginUtil() {
+public final class CodeModelUtil {
+    private CodeModelUtil() {
 
     }
 
@@ -58,7 +61,7 @@ public final class XJCPluginUtil {
         getter.body()._return(JExpr.ref(f.name()));
     }
 
-    public static void createSetter(String fieldName, ClassOutline co, JFieldVar f, JType setType, boolean force) {
+    public static void createSetter(String fieldName, ClassOutline co, JFieldVar f, JClass castType, JType setType, boolean force) {
         //Create the method name
         String methodName = resolveMethodName("set", fieldName);
 
@@ -76,7 +79,7 @@ public final class XJCPluginUtil {
 
             //Create HashSet JType
             JVar param = setter.param(setType, f.name());
-            setter.body().assign(JExpr.refthis(f.name()), param);
+            setter.body().assign(JExpr.refthis(f.name()), JExpr.cast(castType, param));
         }
     }
 
@@ -99,14 +102,13 @@ public final class XJCPluginUtil {
         return sb.toString();
     }
 
-    public static JType resolveType(CPluginCustomization cp, ClassOutline co, JType inner, String typeAttr, String defaultTypeName, ErrorHandler errorHandler) throws SAXException {
+    public static JClass resolveType(CPluginCustomization cp, ClassOutline co, JClass inner, String typeAttr, String defaultTypeName, ErrorHandler errorHandler) throws SAXException {
         String typeName = cp.element.getAttribute(typeAttr);
         if (typeName.length() == 0) {
             typeName = defaultTypeName;
         }
         Class<?> setImpl = null;
         try {
-            System.err.println("typeName:[" + typeName + "]");
             setImpl = Class.forName(typeName);
         } catch (ClassNotFoundException e) {
             errorHandler.error(new SAXParseException(e.getMessage(), null, e));
@@ -136,7 +138,7 @@ public final class XJCPluginUtil {
         return tmp;
     }
 
-    static void describeArgument(StringBuilder sb, String operation, String name, final Class<?> type, final XJCPluginProperty annotation) {
+    public static void describeArgument(StringBuilder sb, String operation, String name, final Class<?> type, final XJCPluginProperty annotation) {
         sb.append(operation);
         sb.append(":");
         sb.append(name);
@@ -148,4 +150,51 @@ public final class XJCPluginUtil {
         sb.append(" ");
     }
 
+
+    public static void changeXMLElementNameAnnotation(JFieldVar var, String newName) {
+        for (JAnnotationUse annotation : var.annotations()) {
+            if ("XmlElement".equals(annotation.getAnnotationClass().name())) {
+                JAnnotationValue annotationValue = annotation.getAnnotationMembers().get("name");
+                replaceValue(annotationValue, newName, s -> true);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void changeXMLTypePropOrderAnnotataion(ClassOutline co, String fieldName, String newName) {
+        for (JAnnotationUse annotation : co.implClass.annotations()) {
+            if ("XmlType".equals(annotation.getAnnotationClass().name())) {
+                JAnnotationArrayMember propOrder = (JAnnotationArrayMember) annotation.getAnnotationMembers().get("propOrder");
+                try {
+                    Field fvalues = JAnnotationArrayMember.class.getDeclaredField("values");
+                    fvalues.setAccessible(true);
+                    List<JAnnotationValue> values = (List<JAnnotationValue>) fvalues.get(propOrder);
+                    for (JAnnotationValue value : values) {
+                        if (replaceValue(value, newName, fieldName::equals)) break;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                break;
+            }
+        }
+    }
+
+    private static boolean replaceValue(JAnnotationValue annotationValue, String newName, Predicate<String> predicate) {
+        try {
+            Class<?> clazz = Class.forName("com.sun.codemodel.JAnnotationStringValue");
+            Field fvalue = clazz.getDeclaredField("value");
+            fvalue.setAccessible(true);
+            JStringLiteral o = (JStringLiteral) fvalue.get(annotationValue);
+            if (predicate.test(o.str)) {
+                Field fstr = JStringLiteral.class.getDeclaredField("str");
+                fstr.setAccessible(true);
+                fstr.set(o, newName);
+                return true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 }

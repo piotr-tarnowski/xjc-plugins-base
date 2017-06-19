@@ -70,15 +70,15 @@ public abstract class XJCPluginBase extends Plugin
             final XJCPluginProperty annotation = method.getAnnotation( XJCPluginProperty.class );
             if ( annotation != null && parameterTypes.length == 1 ){
                 final Class<?> type = parameterTypes[0];
-                String name = XJCPluginUtil.nameFromSetter( method.getName() );
-                XJCPluginUtil.describeArgument( sb, getOptionName(), name, type, annotation );
+                String name = CodeModelUtil.nameFromSetter( method.getName() );
+                CodeModelUtil.describeArgument( sb, getOptionName(), name, type, annotation );
             }
         }
         for( Field field : getClass().getDeclaredFields() ){
             final XJCPluginProperty annotation = field.getAnnotation( XJCPluginProperty.class );
             if ( annotation != null ){
                 final Class<?> type = field.getType();
-                XJCPluginUtil.describeArgument( sb, getOptionName(), field.getName(), type, annotation );
+                CodeModelUtil.describeArgument( sb, getOptionName(), field.getName(), type, annotation );
             }
         }
         return sb.toString();
@@ -150,7 +150,7 @@ public abstract class XJCPluginBase extends Plugin
                     count++;
 
                     try{
-                        String method = XJCPluginUtil.setterForName( name );
+                        String method = CodeModelUtil.setterForName( name );
                         for( Method m : getClass().getDeclaredMethods() ){
                             XJCPluginProperty annotation = m.getAnnotation( XJCPluginProperty.class );
                             if ( annotation != null ){
@@ -161,7 +161,7 @@ public abstract class XJCPluginBase extends Plugin
                                     Class<?>[] parameterTypes = m.getParameterTypes();
                                     if ( parameterTypes.length == 1 ){
                                         Class<?> type = parameterTypes[0];
-                                        Object tmp = XJCPluginUtil.convert( value, type );
+                                        Object tmp = CodeModelUtil.convert( value, type );
                                         if ( tmp != null ){
                                             boolean accessible = m.isAccessible();
                                             m.setAccessible( true );
@@ -181,7 +181,7 @@ public abstract class XJCPluginBase extends Plugin
                                 value = annotation.defaultValue();
                             }
                             Class<?> type = field.getType();
-                            Object tmp = XJCPluginUtil.convert( value, type );
+                            Object tmp = CodeModelUtil.convert( value, type );
                             if ( tmp != null ){
                                 boolean accessible = field.isAccessible();
                                 field.setAccessible( true );
