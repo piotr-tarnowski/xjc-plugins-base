@@ -3,6 +3,7 @@ package com.devontrain.jaxb.common;
 import com.sun.codemodel.*;
 import com.sun.tools.xjc.model.CPluginCustomization;
 import com.sun.tools.xjc.outline.ClassOutline;
+import com.sun.tools.xjc.outline.FieldOutline;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
@@ -114,6 +115,26 @@ public final class CodeModelUtil {
             errorHandler.error(new SAXParseException(e.getMessage(), null, e));
         }
         return co.parent().getCodeModel().ref(setImpl).narrow(inner);
+    }
+
+    public static JFieldVar unwrap(FieldOutline fieldOutline) {
+        try {
+            Class<?> listField = Class.forName("com.sun.tools.xjc.generator.bean.field.AbstractListField");
+            Class<?> singleField = Class.forName("com.sun.tools.xjc.generator.bean.field.AbstractFieldWithVar");
+            Field field;
+            if (listField.isAssignableFrom(fieldOutline.getClass())) {
+                field = listField.getDeclaredField("field");
+            } else if (singleField.isAssignableFrom(fieldOutline.getClass())) {
+                field = singleField.getDeclaredField("field");
+            } else {
+                throw new IllegalStateException("Unknown field type.");
+            }
+            field.setAccessible(true);
+            return (JFieldVar) field.get(fieldOutline);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new IllegalStateException(e);
+        }
     }
 
     @SuppressWarnings("unchecked")
