@@ -26,14 +26,14 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
     @XJCPluginCustomizations(uri = "http://common.jaxb.devontrain.com/plugin/filter-generator")
     private interface filter {
         enum cust {
-          @AllowedAttributes({attrs.class})
-          generate;
+            @AllowedAttributes({attrs.class})
+            generate;
 
-          public interface attrs {
+            public interface attrs {
 
-            String base = "base";
-            String param = "param";
-          }
+                String base = "base";
+                String param = "param";
+            }
         }
     }
 
@@ -52,24 +52,24 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
                     String newClassName = implClass.name() + "Filter";
                     if (pckg == CURRENT_PACKAGE) {
                         JClassContainer parent = implClass.parentContainer();
-                      newClass = parent._class(JMod.PUBLIC, newClassName, ClassType.CLASS);
+                        newClass = parent._class(JMod.PUBLIC, newClassName, ClassType.CLASS);
                     } else {
-                      newClass = codeModel._class(JMod.PUBLIC, pckg + "." + newClassName, ClassType.CLASS);
+                        newClass = codeModel._class(JMod.PUBLIC, pckg + "." + newClassName, ClassType.CLASS);
                     }
-                  final JMethod constructor = newClass.constructor(JMod.PUBLIC);
-                  constructor.body().directStatement("super();");
-                  String baseClass = cp.element.getAttribute(filter.cust.attrs.base);
-                  JClass adapter;
-                  if ("".equals(baseClass)) {
-                    adapter = codeModel.ref(XmlAdapter.class).narrow(implClass, implClass);
-                  } else {
-                    adapter = codeModel.ref(baseClass);
-                    String qualifiedClassName = cp.element.getAttribute(filter.cust.attrs.param);
-                    if (!"".equals(qualifiedClassName)) {
-                      JMethod constr = newClass.constructor(JMod.PUBLIC);
-                      constr.param(codeModel.ref(qualifiedClassName), "param");
-                      constr.body().directStatement("super(param);");
-                    }
+                    final JMethod constructor = newClass.constructor(JMod.PUBLIC);
+                    constructor.body().directStatement("super();");
+                    String baseClass = cp.element.getAttribute(filter.cust.attrs.base);
+                    JClass adapter;
+                    if ("".equals(baseClass)) {
+                        adapter = codeModel.ref(XmlAdapter.class).narrow(implClass, implClass);
+                    } else {
+                        adapter = codeModel.ref(baseClass);
+                        String qualifiedClassName = cp.element.getAttribute(filter.cust.attrs.param);
+                        if (!"".equals(qualifiedClassName)) {
+                            JMethod constr = newClass.constructor(JMod.PUBLIC);
+                            constr.param(codeModel.ref(qualifiedClassName), "param");
+                            constr.body().directStatement("super(param);");
+                        }
 //                      Class<?> clazz = Class.forName(baseClass);
 //                      final Constructor<?>[] constructors = clazz.getConstructors();
 //                      for (Constructor<?> c : constructors) {
@@ -84,37 +84,40 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
 //                        }
 //                        constr.body().directStatement("super(" + String.join(",",params) + ");");
 //                      }
-                  }
+                    }
                     newClass._extends(adapter);
-                  implClass.annotate(XmlJavaTypeAdapter.class).param("value", newClass);
-                    JFieldVar counter = newClass.field(JMod.PROTECTED, int.class, "counter");
-                  JMethod method = newClass.method(JMod.PUBLIC, implClass, "unmarshal");
-                  method.annotate(Override.class);
-                  JVar entity = method.param(implClass, "entity");
-                  if ("".equals(baseClass)) {
-                    method.body()._return(entity);
-                  } else {
-                    method.body()._return(JExpr.invoke(JExpr._super(), "unmarshal").arg(entity));
-                  }
+                    implClass.annotate(XmlJavaTypeAdapter.class).param("value", newClass);
+                    JMethod method = newClass.method(JMod.PUBLIC, implClass, "unmarshal");
+                    method.annotate(Override.class);
+                    JVar entity = method.param(implClass, "entity");
+                    if ("".equals(baseClass)) {
+                        method.body()._return(entity);
+                    } else {
+                        method.body()._return(JExpr.invoke(JExpr._super(), "unmarshal").arg(entity));
+                    }
 
+                    JFieldVar inactive = newClass.field(JMod.PROTECTED, boolean.class, "inactive", JExpr.lit(true));
+                    JFieldVar counter = newClass.field(JMod.PROTECTED, int.class, "counter");
                     JMethod valid = newClass.method(JMod.PUBLIC, boolean.class, "valid");
-                    valid.body()._return(counter.gt(JExpr.lit(0)));
+                    valid.body()._return(inactive.cor(counter.gt(JExpr.lit(0))));
 
                     JMethod test = newClass.method(JMod.PUBLIC, boolean.class, "test");
                     test.param(implClass, "entity");
-                  test.body()._return(JExpr.FALSE);
+                    test.body()._return(JExpr.FALSE);
 
                     JMethod marshal = newClass.method(JMod.PUBLIC, implClass, "marshal");
                     JVar param = marshal.param(implClass, "entity");
-                    final JConditional condition = marshal.body()._if(JExpr.invoke(test).arg(param));
+                    JBlock body = marshal.body();
+                    body._if(counter.lt(JExpr.lit(1)))._then().assign(inactive, JExpr.lit(false));
+                    JConditional condition = body._if(JExpr.invoke(test).arg(param));
                     condition._then()._return(JExpr._null());
-                    final JBlock block = condition._else();
+                    JBlock block = condition._else();
                     block.directStatement("counter++;");
-                  if ("".equals(baseClass)) {
-                    block._return(param);
-                  } else {
-                    block._return(JExpr.invoke(JExpr._super(), "marshal").arg(entity));
-                  }
+                    if ("".equals(baseClass)) {
+                        block._return(param);
+                    } else {
+                        block._return(JExpr.invoke(JExpr._super(), "marshal").arg(entity));
+                    }
                     marshal.annotate(Override.class);
                 } catch (JClassAlreadyExistsException ex) {
                     ex.printStackTrace();
