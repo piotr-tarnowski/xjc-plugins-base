@@ -47,7 +47,7 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
             public void handle(ClassOutline classOutline, filter.cust cust, CPluginCustomization cp) throws SAXException {
                 try {
 
-                  JClass iface;
+                    JClass iface;
                     JDefinedClass implClass = classOutline.implClass;
                     JDefinedClass newClass;
                     String newClassName = implClass.name() + "Filter";
@@ -55,18 +55,22 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
                         JClassContainer parent = implClass.parentContainer();
                         try {
                             iface = parent._class(JMod.PUBLIC, "Filter", ClassType.INTERFACE);
-                          declareFilterInterface((JDefinedClass) iface);
+                            declareFilterInterface((JDefinedClass) iface);
                         } catch (JClassAlreadyExistsException e) {
-                          iface = codeModel.ref(parent.getPackage().name() + ".Filter");
+                            iface = codeModel.ref(parent.getPackage().name() + ".Filter");
                         }
-                        newClass = parent._class(JMod.PUBLIC, newClassName, ClassType.CLASS);
+                        int mods = JMod.PUBLIC;
+                        if (parent.isClass()) {
+                            mods += JMod.STATIC;
+                        }
+                        newClass = parent._class(mods, newClassName, ClassType.CLASS);
                     } else {
                         newClass = codeModel._class(JMod.PUBLIC, pckg + "." + newClassName, ClassType.CLASS);
                         try {
                             iface = codeModel._class(JMod.PUBLIC, pckg + ".Filter", ClassType.INTERFACE);
-                          declareFilterInterface((JDefinedClass) iface);
+                            declareFilterInterface((JDefinedClass) iface);
                         } catch (JClassAlreadyExistsException e) {
-                          iface = codeModel.ref(pckg + ".Filter");
+                            iface = codeModel.ref(pckg + ".Filter");
                         }
                     }
                     newClass._implements(iface);
@@ -117,7 +121,7 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
                     valid.annotate(Override.class);
                     valid.body()._return(inactive.cor(counter.gt(JExpr.lit(0))));
 
-                    JMethod test = newClass.method(JMod.PUBLIC, boolean.class, "test");
+                    JMethod test = newClass.method(JMod.PUBLIC, boolean.class, "accept");
                     test.param(implClass, "entity");
                     test.body()._return(JExpr.FALSE);
 

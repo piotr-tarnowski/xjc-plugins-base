@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.devontrain.jaxb</groupId>
     <artifactId>xjc-plugins-base</artifactId>
-    <version>0.0.4</version>
+    <version>0.0.5</version>
     <name>xjc-plugins-base</name>
     <description>Aim of this framework is to speed up XJC plugins development</description>
     <url>https://github.com/piotr-tarnowski/xjc-plugins-base</url>
