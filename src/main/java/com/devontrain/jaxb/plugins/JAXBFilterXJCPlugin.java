@@ -41,22 +41,41 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
     public boolean run(Outline omodel, Options opt, ErrorHandler errorHandler) throws SAXException {
 
         JCodeModel codeModel = omodel.getCodeModel();
-
         getClassCustomizationHandlers().add(new ClassCustomizationHandler<filter.cust>() {
             @Override
             @SuppressWarnings("StringEquality")
             public void handle(ClassOutline classOutline, filter.cust cust, CPluginCustomization cp) throws SAXException {
                 try {
+
+                    JClass iface;
                     JDefinedClass implClass = classOutline.implClass;
                     JDefinedClass newClass;
                     String newClassName = implClass.name() + "Filter";
                     if (pckg == CURRENT_PACKAGE) {
                         JClassContainer parent = implClass.parentContainer();
-                        newClass = parent._class(JMod.PUBLIC, newClassName, ClassType.CLASS);
+                        try {
+                            iface = parent._class(JMod.PUBLIC, "Filter", ClassType.INTERFACE);
+                            declareFilterInterface((JDefinedClass) iface);
+                        } catch (JClassAlreadyExistsException e) {
+                            iface = codeModel.ref(parent.getPackage().name() + ".Filter");
+                        }
+                        int mods = JMod.PUBLIC;
+                        if (parent.isClass()) {
+                            mods += JMod.STATIC;
+                        }
+                        newClass = parent._class(mods, newClassName, ClassType.CLASS);
                     } else {
                         newClass = codeModel._class(JMod.PUBLIC, pckg + "." + newClassName, ClassType.CLASS);
+                        try {
+                            iface = codeModel._class(JMod.PUBLIC, pckg + ".Filter", ClassType.INTERFACE);
+                            declareFilterInterface((JDefinedClass) iface);
+                        } catch (JClassAlreadyExistsException e) {
+                            iface = codeModel.ref(pckg + ".Filter");
+                        }
                     }
-                    final JMethod constructor = newClass.constructor(JMod.PUBLIC);
+                    newClass._implements(iface);
+
+                    JMethod constructor = newClass.constructor(JMod.PUBLIC);
                     constructor.body().directStatement("super();");
                     String baseClass = cp.element.getAttribute(filter.cust.attrs.base);
                     JClass adapter;
@@ -70,20 +89,6 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
                             constr.param(codeModel.ref(qualifiedClassName), "param");
                             constr.body().directStatement("super(param);");
                         }
-//                      Class<?> clazz = Class.forName(baseClass);
-//                      final Constructor<?>[] constructors = clazz.getConstructors();
-//                      for (Constructor<?> c : constructors) {
-//                        final JMethod constr = newClass.constructor(JMod.PUBLIC);
-//                        final Class<?>[] parameterTypes = c.getParameterTypes();
-//                        int i =0;
-//                        List<String> params = new ArrayList<>(parameterTypes.length);
-//                        for (Class<?> parameter : parameterTypes) {
-//                          final String name = "arg" + i;
-//                          constr.param(codeModel.ref(parameter), name);
-//                          params.add(name);
-//                        }
-//                        constr.body().directStatement("super(" + String.join(",",params) + ");");
-//                      }
                     }
                     newClass._extends(adapter);
                     implClass.annotate(XmlJavaTypeAdapter.class).param("value", newClass);
@@ -99,17 +104,24 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
                     JFieldVar inactive = newClass.field(JMod.PROTECTED, boolean.class, "inactive", JExpr.lit(true));
                     JFieldVar counter = newClass.field(JMod.PROTECTED, int.class, "counter");
                     JMethod valid = newClass.method(JMod.PUBLIC, boolean.class, "valid");
+                    valid.annotate(Override.class);
                     valid.body()._return(inactive.cor(counter.gt(JExpr.lit(0))));
 
-                    JMethod test = newClass.method(JMod.PUBLIC, boolean.class, "test");
-                    test.param(implClass, "entity");
-                    test.body()._return(JExpr.FALSE);
+                    JMethod accept = newClass.method(JMod.PUBLIC, boolean.class, "accept");
+                    accept.param(implClass, "entity");
+                    accept.body()._return(JExpr.FALSE);
+
+                    JMethod reset = newClass.method(JMod.PUBLIC, void.class, "reset");
+                    reset.annotate(Override.class);
+                    final JBlock jBlock = reset.body();
+                    jBlock.assign(counter,JExpr.lit(0));
+                    jBlock.assign(inactive,JExpr.lit(true));
 
                     JMethod marshal = newClass.method(JMod.PUBLIC, implClass, "marshal");
                     JVar param = marshal.param(implClass, "entity");
                     JBlock body = marshal.body();
-                    body._if(counter.lt(JExpr.lit(1)))._then().assign(inactive, JExpr.lit(false));
-                    JConditional condition = body._if(JExpr.invoke(test).arg(param));
+                    body._if(inactive)._then().assign(inactive, JExpr.lit(false));
+                    JConditional condition = body._if(JExpr.invoke(accept).arg(param));
                     condition._then()._return(JExpr._null());
                     JBlock block = condition._else();
                     block.directStatement("counter++;");
@@ -126,5 +138,10 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
         });
         handleDeclaredCustomizations(omodel, opt, errorHandler);
         return true;
+    }
+
+    private void declareFilterInterface(JDefinedClass iface) {
+        iface.method(JMod.PUBLIC, boolean.class, "valid");
+        iface.method(JMod.PUBLIC, void.class, "reset");
     }
 }
