@@ -89,20 +89,6 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
                             constr.param(codeModel.ref(qualifiedClassName), "param");
                             constr.body().directStatement("super(param);");
                         }
-//                      Class<?> clazz = Class.forName(baseClass);
-//                      final Constructor<?>[] constructors = clazz.getConstructors();
-//                      for (Constructor<?> c : constructors) {
-//                        final JMethod constr = newClass.constructor(JMod.PUBLIC);
-//                        final Class<?>[] parameterTypes = c.getParameterTypes();
-//                        int i =0;
-//                        List<String> params = new ArrayList<>(parameterTypes.length);
-//                        for (Class<?> parameter : parameterTypes) {
-//                          final String name = "arg" + i;
-//                          constr.param(codeModel.ref(parameter), name);
-//                          params.add(name);
-//                        }
-//                        constr.body().directStatement("super(" + String.join(",",params) + ");");
-//                      }
                     }
                     newClass._extends(adapter);
                     implClass.annotate(XmlJavaTypeAdapter.class).param("value", newClass);
@@ -121,15 +107,21 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
                     valid.annotate(Override.class);
                     valid.body()._return(inactive.cor(counter.gt(JExpr.lit(0))));
 
-                    JMethod test = newClass.method(JMod.PUBLIC, boolean.class, "accept");
-                    test.param(implClass, "entity");
-                    test.body()._return(JExpr.FALSE);
+                    JMethod accept = newClass.method(JMod.PUBLIC, boolean.class, "accept");
+                    accept.param(implClass, "entity");
+                    accept.body()._return(JExpr.FALSE);
+
+                    JMethod reset = newClass.method(JMod.PUBLIC, void.class, "reset");
+                    reset.annotate(Override.class);
+                    final JBlock jBlock = reset.body();
+                    jBlock.assign(counter,JExpr.lit(0));
+                    jBlock.assign(inactive,JExpr.lit(true));
 
                     JMethod marshal = newClass.method(JMod.PUBLIC, implClass, "marshal");
                     JVar param = marshal.param(implClass, "entity");
                     JBlock body = marshal.body();
                     body._if(inactive)._then().assign(inactive, JExpr.lit(false));
-                    JConditional condition = body._if(JExpr.invoke(test).arg(param));
+                    JConditional condition = body._if(JExpr.invoke(accept).arg(param));
                     condition._then()._return(JExpr._null());
                     JBlock block = condition._else();
                     block.directStatement("counter++;");
@@ -150,5 +142,6 @@ public class JAXBFilterXJCPlugin extends XJCPluginBase {
 
     private void declareFilterInterface(JDefinedClass iface) {
         iface.method(JMod.PUBLIC, boolean.class, "valid");
+        iface.method(JMod.PUBLIC, void.class, "reset");
     }
 }
